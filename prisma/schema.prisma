@@ -74,7 +74,7 @@ model User {
   subscription        Subscription?
 
   stripeCustomerId    String?   @unique
-  credits             Int       @default(3)
+  credits             Int       @default(5)
   
   // Deprecated: use Subscription model instead
   // stripeSubscriptionId   String?   @unique
