@@ -1,0 +1,135 @@
+import { redirect } from "next/navigation"
+
+import { prisma } from "@/lib/prisma"
+import { getCurrentUser } from "@/lib/session"
+import { constructMetadata } from "@/lib/utils"
+import { DashboardHeader } from "@/components/dashboard/header"
+
+import { OrdersFilter } from "./components/orders-filter"
+import { OrdersTable } from "./components/orders-table"
+
+export const metadata = constructMetadata({
+  title: "Purchase Orders",
+  description: "View and manage all purchase orders in the system.",
+})
+
+export default async function OrdersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const user = await getCurrentUser()
+  if (!user || user.role !== "ADMIN") redirect("/login?redirect=/admin/orders")
+
+  // Parse search params
+  const params = await searchParams
+  const status = params.status as string | undefined
+  const product = params.product as string | undefined
+  const search = params.search as string | undefined
+  const userId = params.userId ? Number(params.userId) : undefined
+  const startDate = params.startDate as string | undefined
+  const endDate = params.endDate as string | undefined
+  const page = Number(params.page) || 1
+  const pageSize = 10
+
+  // Build filter conditions
+  const where: any = {}
+
+  if (status) {
+    where.status = status
+  }
+
+  if (product) {
+    where.product = {
+      contains: product,
+      mode: "insensitive",
+    }
+  }
+
+  // Handle search parameter (for direct links from user management)
+  if (search) {
+    where.id = search
+  }
+
+  // Handle userId parameter (for filtering by user)
+  if (userId) {
+    where.userId = userId
+  }
+
+  const dateFilter: any = {}
+  if (startDate) {
+    dateFilter.gte = new Date(startDate)
+  }
+  if (endDate) {
+    // Add one day to include the end date fully
+    const endDateObj = new Date(endDate)
+    endDateObj.setDate(endDateObj.getDate() + 1)
+    dateFilter.lte = endDateObj
+  }
+
+  if (Object.keys(dateFilter).length > 0) {
+    where.createdAt = dateFilter
+  }
+
+  // Fetch orders with pagination
+  const [ordersRaw, totalOrders] = await Promise.all([
+    prisma.purchase.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.purchase.count({ where }),
+  ])
+
+  // Convert Decimal to number for the amount field
+  const orders = ordersRaw.map((order: any) => ({
+    ...order,
+    amount: Number(order.amount),
+  }))
+
+  // Get unique products for filter dropdown
+  const uniqueProducts = await prisma.purchase.findMany({
+    select: {
+      product: true,
+    },
+    distinct: ["product"],
+    where: {
+      product: {
+        not: "",
+      },
+    },
+  })
+
+  const productOptions = uniqueProducts.map((p: any) => p.product)
+
+  const totalPages = Math.ceil(totalOrders / pageSize)
+
+  return (
+    <div className="space-y-6 p-4">
+      <DashboardHeader
+        heading="Purchase Orders"
+        text="View and manage all purchase orders in the system."
+      />
+
+      <OrdersFilter
+        productOptions={productOptions}
+        currentStatus={status}
+        currentProduct={product}
+        currentStartDate={startDate}
+        currentEndDate={endDate}
+      />
+
+      <OrdersTable orders={orders} currentPage={page} totalPages={totalPages} />
+    </div>
+  )
+}

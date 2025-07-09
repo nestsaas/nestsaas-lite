@@ -1,0 +1,63 @@
+@layer utilities {
+  code[data-theme="light"],
+  code[data-theme="light"] span {
+    color: var(--shiki-light);
+    background-color: var(--shiki-light-bg);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    code[data-theme="dark"],
+    code[data-theme="dark"] span {
+      color: var(--shiki-dark);
+      background-color: var(--shiki-dark-bg);
+    }
+  }
+
+  [data-rehype-pretty-code-figure] {
+    @apply relative mt-6 mb-4;
+  }
+
+  [data-rehype-pretty-code-figure] code {
+    @apply grid min-w-full rounded-none border-0 bg-transparent p-0 break-words;
+    counter-reset: line;
+    box-decoration-break: clone;
+  }
+
+  [data-line] {
+    @apply inline-block min-h-[1rem] w-full px-4 py-0.5;
+  }
+
+  [data-line-numbers] > [data-line]::before {
+    @apply text-muted-foreground text-xs;
+    counter-increment: line;
+    content: counter(line);
+    display: inline-block;
+    width: 1rem;
+    margin-right: 1.5rem;
+    text-align: right;
+  }
+
+  [data-highlighted-line] {
+    @apply bg-zinc-600/50;
+  }
+
+  [data-highlighted-chars] span {
+    @apply relative;
+  }
+
+  [data-highlighted-chars] {
+    @apply text-foreground rounded-sm bg-zinc-600/50 p-1;
+  }
+
+  [data-rehype-pretty-code-title] {
+    @apply mt-3 px-4 py-2 text-sm font-medium;
+  }
+
+  .mdx > .steps:first-child > h3:first-child {
+    @apply mt-0;
+  }
+
+  .steps > h3 {
+    @apply mt-8 mb-4 text-base font-semibold;
+  }
+}

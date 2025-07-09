@@ -1,0 +1,254 @@
+---
+title: How To Dynamically Generates OG Images with Next.js
+description: Understanding how NestSaaS dynamically generates OG Images
+date: "2025-05-04"
+image: /_static/blog/blog-post-2.jpg
+authors:
+  - ShawnHacks
+categories:
+  - design
+related:
+  - 50-tips-for-a-better-life
+---
+
+When building a modern content platform like **NestSaaS**, having visually engaging **Open Graph (OG)** images is essential. These preview images appear when users share your blog posts or documentation pages on platforms like Twitter, LinkedIn, or Facebook—and can significantly boost visibility and engagement.
+
+In this post, we'll walk through how **NestSaaS** implements dynamic OG image generation using **Next.js** and **Sharp**, enabling every article to automatically generate a clean, branded image preview.
+
+---
+
+## Why Dynamic OG Images?
+
+NestSaaS is a modular content system where each “**Page**” (e.g., Blog, Docs, Products) can have its own structure and branding. Instead of manually creating preview images for every post, we wanted a system that could:
+
+- Generate OG images on-demand for any article
+- Reflect the unique metadata of each post
+- Match the overall NestSaaS brand style
+- Keep performance and cache efficiency in mind
+
+The result? You can visit any post’s `/og` route and instantly get a dynamically generated preview image.
+
+Example:
+https://nestsaas.com/blog/dynamically-generates-og-images/og
+
+---
+
+## System Overview
+
+The implementation has two main components:
+
+1. **An API route in Next.js** – to generate images dynamically
+2. **An SVG template** – to define the layout and style of the image
+
+### How It Works
+
+1. Fetch post data from the CMS or content layer
+2. Generate an SVG layout using post metadata
+3. Convert the SVG to an image using **Sharp**
+4. Return the image with caching headers
+
+---
+
+## Step 1: The API Route
+
+`/blog/[slug]/og/route.ts`
+
+This API route handles requests like `/blog/my-post/og` and generates an image on-the-fly.
+
+Here’s a simplified version of the logic:
+
+```tsx
+import { generateBlogHeaderSVG } from "@/lib/ogTemplate"
+import { getPostBySlug } from "@/lib/posts"
+
+const basePath = path.resolve(process.cwd())
+const fontsPath = path.resolve(basePath, "assets/fonts")
+
+const fontConfigPath = path.resolve(fontsPath, "fonts.conf")
+// Load the font files
+const interRegularPath = path.resolve(fontsPath, "Inter-Regular.ttf")
+const interBoldPath = path.resolve(fontsPath, "Inter-Bold.ttf")
+
+// Load the logo file
+const logoPath = path.resolve(process.cwd(), "public/logo.png")
+
+// Helper function to read file and convert to base64
+async function getFileBase64(filePath: string, mimeType: string) {
+  try {
+    const buffer = fs.readFileSync(filePath)
+    return `data:${mimeType};base64,${buffer.toString("base64")}`
+  } catch (error) {
+    console.error(`Error loading file from ${filePath}:`, error)
+    return null
+  }
+}
+
+// Helper function specifically for fonts
+async function getFontBase64(fontPath: string) {
+  return getFileBase64(fontPath, "font/ttf")
+}
+
+export const dynamic = "force-dynamic"
+
+export async function GET(
+  _: NextRequest,
+  {
+    params,
+  }: {
+    params: Promise<{
+      slug: string
+    }>
+  }
+) {
+  const slug = (await params).slug
+  const item = allPosts.find((post) => post._meta.path === slug)
+  if (!item) {
+    return new Response("Not found", { status: 404 })
+  }
+
+  // Load fonts and logo, convert to base64
+  const [interRegularBase64, interBoldBase64, logoBase64] = await Promise.all([
+    getFontBase64(interRegularPath),
+    getFontBase64(interBoldPath),
+    getFileBase64(logoPath, "image/png"),
+  ])
+
+  const date = new Date(item.date)
+  const dateString = date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  })
+
+  process.env.FONTCONFIG_FILE = fontConfigPath
+  process.env.FONTCONFIG_PATH = fontsPath
+
+  // Generate SVG with embedded fonts
+  let svg = generateBlogHeaderSVG({
+    date: dateString,
+    title: item.title,
+    description: item.description ?? "",
+  })
+
+  // Replace the font-face declarations with base64 embedded fonts and add logo
+  if (interRegularBase64 && interBoldBase64) {
+    // Find the style tag and replace its content
+    const styleTagRegex = /<style>([\s\S]*?)<\/style>/
+    const fontFaceDeclaration = `
+        @font-face {
+          font-family: 'Inter';
+          font-style: normal;
+          font-weight: 400;
+          src: url("${interRegularBase64}") format('truetype');
+        }
+        @font-face {
+          font-family: 'Inter';
+          font-style: normal;
+          font-weight: 600;
+          src: url("${interBoldBase64}") format('truetype');
+        }
+        svg {
+          font-family: 'Inter', sans-serif;
+        }
+      `
+
+    svg = svg.replace(styleTagRegex, `<style>${fontFaceDeclaration}</style>`)
+
+    // Replace logo placeholder with actual base64 logo if available
+    if (logoBase64) {
+      svg = svg.replace("LOGO_PLACEHOLDER", logoBase64)
+    }
+  }
+  try {
+    const { default: sharp } = await import("sharp")
+    const image = await sharp(Buffer.from(svg)).webp().toBuffer()
+    // Cache for a year
+    const cacheTime = 60 * 60 * 24 * 365
+    const cacheControl = `public, no-transform, max-age=${cacheTime}, immutable`
+    return new Response(image, {
+      headers: {
+        "Content-Type": "image/webp",
+        "Cache-Control": cacheControl,
+      },
+    })
+  } catch (e) {
+    console.error(e)
+    return new Response(null, {
+      status: 500,
+      headers: {
+        "Content-Type": "text/plain",
+      },
+    })
+  }
+}
+```
+
+## Step 2: The SVG Template
+
+We use a custom function `generateBlogHeaderSVG(post)` that generates the SVG content. This includes:
+
+- Title (auto-wrapped)
+- Description (optional)
+- Publish date
+- Brand colors and typography
+
+The template is designed to be clean and flexible, using texture, custom fonts, and consistent layout rules.
+
+We also use helper functions like:
+
+- `getTitleLines(text)` – wraps the title without breaking words
+- `getDescriptionLines(text)` – similar logic for the description
+
+## Step 3: Integrating OG Meta Tags
+
+Once the dynamic route is in place, we add the og:image meta tag to each post:
+
+```tsx
+<Head>
+  <meta property="og:image" content={`https://example.com/blog/${slug}/og`} />
+</Head>
+```
+
+This ensures that when the article is shared, the correct dynamic image is used by social platforms.
+
+## Hosting Fonts in Vercel
+
+If you're deploying to Vercel (like we do), Sharp may not find system fonts. To fix this:
+
+- 1.Create a `fonts/` folder in your project, nestsaas use `assets/fonts`
+- 2.Include your `.ttf` or `.otf` files there
+- 3.Add a `fonts.conf` file pointing to the local font folder
+- 4.Load it using `sharp.config({ ... })` if needed
+
+```xml
+// fonts.conf
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>/var/task/assets/fonts/</dir>
+  <cachedir>/tmp/fonts-cache/</cachedir>
+  <config></config>
+</fontconfig>
+```
+
+## Common Issues
+
+- Font loading issues: Ensure fonts are bundled with your project
+- Sharp dependencies: On some systems, extra libraries may be required
+- Image caching: If updates aren’t showing, clear cache or change the image URL
+
+## Benefits of This Approach
+
+- ✅ **Dynamic** – Always reflects the latest post content
+- ⚡ **Fast** – Sharp is very performant for image generation
+- 📦 **Lightweight** – No external design tools required
+- 🎨 **Customizable** – SVG template makes layout updates easy
+- 🗂 **Modular** – Works across different NestSaaS Spaces
+
+## Final Thoughts
+
+Dynamic OG images are a simple yet powerful upgrade for any content platform. With Next.js, SVG, and Sharp, NestSaaS achieves scalable, on-brand previews across all Spaces—without any manual design work.
+
+If you're building a headless CMS or multi-space platform like NestSaaS, this technique is a great way to polish your user experience.
+
+Have questions about implementing this in your own project? Let us know!
