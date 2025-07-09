@@ -179,18 +179,6 @@ model Purchase {
   @@map(name: "purchases")
 }
 
-
-enum SubscriptionStatus {
-  pending
-  active
-  canceled
-  past_due
-  unpaid
-  incomplete
-  incomplete_expired
-  trialing
-}
-
 model Subscription {
   id                   String  @id @default(cuid())
   stripeCustomerId     String  @unique

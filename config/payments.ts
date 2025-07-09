@@ -233,7 +233,7 @@ export const codeRepository: CodeRepository = {
   enterprise: {
     priceId: "price_1RHIl0FWZZWHBTTtoPT7O8wX",
     priceOrigin: 599,
-    price: 369,
+    price: 269,
   },
 
   currency: "USD",

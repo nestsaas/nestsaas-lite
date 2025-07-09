@@ -14,7 +14,7 @@ const licenseData = [
   },
   {
     feature: "Repository Users",
-    free: "0",
+    free: "-",
     pro: "1",
     teams: "Up to 5 members (contact us for more)",
   },
@@ -32,7 +32,7 @@ const licenseData = [
   },
   {
     feature: "Showcase your products ",
-    free: "",
+    free: true,
     pro: true,
     teams: true,
   },
@@ -64,8 +64,8 @@ const featuresData = [
     teams: true,
   },
   {
-    feature: "CMS & Super Admin",
-    free: true,
+    feature: "CMS",
+    free: false,
     pro: true,
     teams: true,
   },
