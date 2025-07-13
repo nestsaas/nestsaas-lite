@@ -47,8 +47,7 @@ export async function POST(req: Request) {
   return NextResponse.json({ received: true });
 }
 
-const allowedEvents: Stripe.Event.Type[] = [
-  "checkout.session.completed",
+const subscriptionEvents : Stripe.Event.Type[] = [
   "customer.subscription.created",
   "customer.subscription.updated",
   "customer.subscription.deleted",
@@ -57,29 +56,60 @@ const allowedEvents: Stripe.Event.Type[] = [
   "customer.subscription.pending_update_applied",
   "customer.subscription.pending_update_expired",
   "customer.subscription.trial_will_end",
+  "invoice.upcoming",
+]
+
+// purchase 依赖事件即可，subscription 依赖stripe最新状态
+const paymentEvents : Stripe.Event.Type[] = [
+  // "payment_intent.succeeded", // 这个不必要，会与checkout.session.completed重复
+  // "payment_intent.canceled", // 这个也不必要关心
+  "payment_intent.payment_failed",
+  "charge.refunded",
+]
+
+const bothEvents : Stripe.Event.Type[] = [
+  "checkout.session.completed",
   "invoice.paid",
   "invoice.payment_failed",
   "invoice.payment_action_required",
-  "invoice.upcoming",
   "invoice.marked_uncollectible",
   "invoice.payment_succeeded",
-  
-  "payment_intent.succeeded",
-  "payment_intent.payment_failed",
-  "payment_intent.canceled",
-  "charge.refunded",
+]
+
+const allowedEvents: Stripe.Event.Type[] = [
+  ...bothEvents,
+  ...subscriptionEvents,
+  ...paymentEvents,
 ];
 
 async function processEvent(event: Stripe.Event) {
   // Skip processing if the event isn't one I'm tracking (list of all events below)
   if (!allowedEvents.includes(event.type)) return;
- 
-  // Deal with purchase related events
-  if (event.type === 'checkout.session.completed' || 
-    event.type.startsWith('payment_intent.') || 
-    event.type === 'charge.refunded') {
+
+  if (paymentEvents.includes(event.type)) {
     return processPurchaseEvent(event);
   }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    if (session.mode === 'payment') {
+      return processPurchaseEvent(event);
+    }
+  }
+ 
+  let isSubscriptionEvent = false;
+  // Deal with purchase related events
+  if (subscriptionEvents.includes(event.type)) {
+    isSubscriptionEvent = true;
+  }
+  if (bothEvents.includes(event.type)) {
+    const object = event.data.object as { subscription?: string };
+    if (Boolean(object.subscription)) {
+      isSubscriptionEvent = true;
+    }
+  }
+
+  if (!isSubscriptionEvent) return;
 
   // Deal with subscription related events
   const { customer: customerId } = event?.data?.object as { customer?: string };
@@ -96,16 +126,7 @@ async function processPurchaseEvent(event: Stripe.Event) {
   if (event.type === 'checkout.session.completed') {
     session = event.data.object as Stripe.Checkout.Session;
     paymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent as string);
-  } else if (event.type.startsWith('payment_intent.')) {
-    paymentIntent = event.data.object as Stripe.PaymentIntent;
-    // Get associated checkout session
-    const sessions = await stripe.checkout.sessions.list({
-      payment_intent: paymentIntent.id,
-      limit: 1
-    });
-    session = sessions.data[0];
-  }
-
+  } 
   if (!session || !paymentIntent) return;
 
   const purchaseId = session.metadata?.purchaseId;
@@ -119,7 +140,7 @@ async function processPurchaseEvent(event: Stripe.Event) {
   // Update purchase record based on payment status
   let status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED' = 'PENDING';
   
-  if (event.type === 'payment_intent.succeeded') {
+  if (event.type === 'checkout.session.completed') {
     status = 'COMPLETED';
   } else if (event.type === 'payment_intent.payment_failed') {
     status = 'FAILED';
