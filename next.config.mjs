@@ -23,6 +23,10 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: "https",
+        hostname: "api.cloudflare.com",
+      },
+      {
+        protocol: "https",
         hostname: "**.githubusercontent.com",
       },
       {

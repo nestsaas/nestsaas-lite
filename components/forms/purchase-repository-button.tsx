@@ -46,7 +46,11 @@ export function PurchaseRepositoryButton({
         return
       }
 
-      const result = await generateStripePurchase(validationResult.data)
+      const result = await generateStripePurchase({
+        ...validationResult.data,
+        successUrl: window.location.href,
+        cancelUrl: window.location.href,
+      })
 
       if (result.error) {
         toast.error(result.error)

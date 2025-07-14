@@ -126,10 +126,8 @@ export async function generateStripePurchase(
       //     type: "text",
       //   },
       // ],
-      success_url:
-        successUrl || absoluteUrl(`/purchase/success?id=${purchase.id}`),
-      cancel_url:
-        cancelUrl || absoluteUrl(`/purchase/cancel?id=${purchase.id}`),
+      success_url: successUrl,
+      cancel_url: cancelUrl,
     })
 
     // Update purchase with Stripe session ID
