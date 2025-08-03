@@ -82,6 +82,14 @@ export const footerColumns: FooterColumn[] = [
       { label: "NestSaaS", href: "https://nestsaas.com" },
       { label: "AIHuntList", href: "https://aihuntlist.com" },
       { label: "Gemlink.app", href: "https://gemlink.app" },
+      {
+        label: "Website Screenshot Online",
+        href: "https://websitescreenshot.online/",
+      },
+      {
+        label: "Indietion - Blog of Shawn",
+        href: "https://indietion.com/",
+      },
     ],
   },
   {
