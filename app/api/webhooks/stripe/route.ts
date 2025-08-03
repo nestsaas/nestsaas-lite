@@ -59,10 +59,10 @@ const subscriptionEvents : Stripe.Event.Type[] = [
   "invoice.upcoming",
 ]
 
-// purchase 依赖事件即可，subscription 依赖stripe最新状态
+// purchase depends on events，subscription depends on stripe latest status
 const paymentEvents : Stripe.Event.Type[] = [
-  // "payment_intent.succeeded", // 这个不必要，会与checkout.session.completed重复
-  // "payment_intent.canceled", // 这个也不必要关心
+  // "payment_intent.succeeded", // not necessary
+  // "payment_intent.canceled", // do not care
   "payment_intent.payment_failed",
   "charge.refunded",
 ]
